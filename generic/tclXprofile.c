@@ -125,10 +125,14 @@ ProfStrCommandEval (ClientData    clientData,
 static int
 ProfObjCommandEval (ClientData    clientData,
                     Tcl_Interp   *interp,
-                    int           objc,
+                    Tcl_Size      objc,
                     Tcl_Obj      *const objv[]);
 
+#if TCL_MAJOR_VERSION > 8
+static Tcl_CmdObjTraceProc2 ProfTraceRoutine;
+#else
 static Tcl_CmdObjTraceProc ProfTraceRoutine;
+#endif
 
 static void
 CleanDataTable (profInfo_t *infoPtr);
@@ -153,7 +157,7 @@ TurnOffProfiling (Tcl_Interp *interp,
 static int
 TclX_ProfileObjCmd (ClientData   clientData,
                     Tcl_Interp  *interp,
-                    int          objc,
+                    Tcl_Size     objc,
                     Tcl_Obj    *const objv[]);
 
 static void
@@ -398,8 +402,8 @@ ProfCommandEvalSetup (profInfo_t *infoPtr, int *isProcPtr)
         cmdInfo.proc = infoPtr->savedCmdInfo.proc;
     if (cmdInfo.clientData == (ClientData) infoPtr)
         cmdInfo.clientData = infoPtr->savedCmdInfo.clientData;
-    if (cmdInfo.objProc == ProfObjCommandEval)
-        cmdInfo.objProc = infoPtr->savedCmdInfo.objProc;
+    if (cmdInfo.objProc2 == ProfObjCommandEval)
+        cmdInfo.objProc2 = infoPtr->savedCmdInfo.objProc2;
     if (cmdInfo.objClientData == (ClientData) infoPtr)
         cmdInfo.objClientData = infoPtr->savedCmdInfo.objClientData;
     if (cmdInfo.deleteProc == NULL)
@@ -417,7 +421,7 @@ ProfCommandEvalSetup (profInfo_t *infoPtr, int *isProcPtr)
 
     /*
      * Use the level value passed in by Tcl_Interp through ProfTraceRoutine.
-     *   Ref: Tcl_CmdObjTraceProc(ClientData, Tcl_Interp*, int level, ...)
+     *   Ref: Tcl_CmdObjTraceProc2(ClientData, Tcl_Interp*, int level, ...)
      * The value calcuated from iPtr->framePtr chain may be smaller.
      * And will cause issue when checking (infoPtr->stackPtr->procLevel > procLevel).
      */
@@ -533,7 +537,7 @@ ProfStrCommandEval (ClientData    clientData,
 static int
 ProfObjCommandEval (ClientData    clientData,
                     Tcl_Interp   *interp,
-                    int           objc,
+                    Tcl_Size      objc,
                     Tcl_Obj      *const objv[])
 {
     profInfo_t *infoPtr = (profInfo_t *) clientData;
@@ -555,13 +559,13 @@ ProfObjCommandEval (ClientData    clientData,
  *-----------------------------------------------------------------------------
  */
 static int
-ProfTraceRoutine (ClientData  clientData,
-                  Tcl_Interp *interp,
-                  int         evalLevel,
-                  const char *command,
-                  Tcl_Command cmd,
-                  int         objc,
-                  Tcl_Obj    *const objv[])
+ProfTraceRoutine (ClientData   clientData,
+                  Tcl_Interp  *interp,
+                  Tcl_Size     evalLevel,
+                  const char  *command,
+                  Tcl_Command  cmd,
+                  Tcl_Size     objc,
+                  Tcl_Obj     *const objv[])
 {
     /* struct Tcl_Obj * const *objv; */
     profInfo_t *infoPtr = (profInfo_t *) clientData;
@@ -586,7 +590,7 @@ ProfTraceRoutine (ClientData  clientData,
      */
     cmdInfo.proc = ProfStrCommandEval;
     cmdInfo.clientData = (ClientData) infoPtr;
-    cmdInfo.objProc = ProfObjCommandEval;
+    cmdInfo.objProc2 = ProfObjCommandEval;
     cmdInfo.objClientData = (ClientData) infoPtr;
     cmdInfo.isNativeObjectProc = infoPtr->savedCmdInfo.isNativeObjectProc;
     cmdInfo.deleteProc = NULL;
@@ -671,7 +675,7 @@ TurnOnProfiling (profInfo_t *infoPtr, int commandMode, int evalMode)
     CleanDataTable (infoPtr);
 
     infoPtr->traceHandle =
-        Tcl_CreateObjTrace (infoPtr->interp, 0,
+        Tcl_CreateObjTrace2 (infoPtr->interp, 0,
                          TCL_ALLOW_INLINE_COMPILATION, ProfTraceRoutine,
                          (ClientData) infoPtr, NULL);
     infoPtr->commandMode = commandMode;
@@ -800,11 +804,11 @@ TurnOffProfiling (Tcl_Interp *interp, profInfo_t *infoPtr, char *varName)
 static int
 TclX_ProfileObjCmd (ClientData   clientData,
                     Tcl_Interp  *interp,
-                    int          objc,
+                    Tcl_Size     objc,
                     Tcl_Obj    *const objv[])
 {
     profInfo_t *infoPtr = (profInfo_t *) clientData;
-    int argIdx;
+    Tcl_Size argIdx;
     int commandMode = FALSE, evalMode = FALSE;
     char *argStr;
         
@@ -939,11 +943,11 @@ TclX_ProfileInit (Tcl_Interp *interp)
 
     Tcl_CallWhenDeleted (interp, ProfMonCleanUp, (ClientData) infoPtr);
 
-    Tcl_CreateObjCommand (interp, 
-			  "profile",
-			  TclX_ProfileObjCmd,
-                          (ClientData) infoPtr,
-			  (Tcl_CmdDeleteProc*) NULL);
+    Tcl_CreateObjCommand2 (interp, 
+			   "profile",
+			   TclX_ProfileObjCmd,
+                           (ClientData) infoPtr,
+			   (Tcl_CmdDeleteProc*) NULL);
 }
 
 /* vim: set ts=4 sw=4 sts=4 et : */

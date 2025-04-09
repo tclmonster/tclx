@@ -22,13 +22,13 @@
 static int 
 TclX_ChrootObjCmd (ClientData clientData,
 				  Tcl_Interp *interp, 
-			      int         objc,
+			      Tcl_Size        objc,
 			      Tcl_Obj     *const objv[]);
 
 static int 
 TclX_TimesObjCmd (ClientData   clientData,
 				 Tcl_Interp  *interp,
-				 int          objc,
+				 Tcl_Size     objc,
 				 Tcl_Obj      *const objv[]);
 
 
@@ -40,7 +40,7 @@ TclX_TimesObjCmd (ClientData   clientData,
 static int
 TclX_ChrootObjCmd (ClientData  clientData,
                   Tcl_Interp *interp,
-                  int         objc,
+                  Tcl_Size    objc,
                   Tcl_Obj   *const objv[])
 {
     return TclXNotAvailableObjError (interp, objv [0]);
@@ -54,7 +54,7 @@ TclX_ChrootObjCmd (ClientData  clientData,
 static int
 TclX_TimesObjCmd (ClientData  clientData,
                  Tcl_Interp *interp,
-                 int         objc,
+                 Tcl_Size    objc,
                  Tcl_Obj   *const objv[])
 {
     return TclXNotAvailableObjError (interp, objv [0]);

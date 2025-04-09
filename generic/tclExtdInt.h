@@ -209,7 +209,7 @@ typedef int
 
 extern int
 TclX_CreateObjCommand (Tcl_Interp* interp, char* cmdName,
-                       Tcl_ObjCmdProc *proc, ClientData clientData,
+                       Tcl_ObjCmdProc2 *proc, ClientData clientData,
                        Tcl_CmdDeleteProc *deleteProc, int flags);
 
 extern void *
@@ -282,8 +282,8 @@ TclX_GetOffsetFromObj (Tcl_Interp *interp,
 extern int
 TclX_RelativeExpr (Tcl_Interp  *interp,
                    Tcl_Obj     *exprPtr,
-                   int          stringLen,
-                   int         *exprResultPtr);
+                   Tcl_Size     stringLen,
+                   Tcl_Size    *exprResultPtr);
 
 extern int
 TclX_SetChannelOption (Tcl_Interp  *interp,
