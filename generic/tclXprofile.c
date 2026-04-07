@@ -128,6 +128,12 @@ ProfObjCommandEval (ClientData    clientData,
                     Tcl_Size      objc,
                     Tcl_Obj      *const objv[]);
 
+static int
+ProfObjCommandEvalCompat (ClientData    clientData,
+                          Tcl_Interp   *interp,
+                          int           objc,
+                          Tcl_Obj      *const objv[]);
+
 #if TCL_MAJOR_VERSION > 8
 static Tcl_CmdObjTraceProc2 ProfTraceRoutine;
 #else
@@ -396,21 +402,23 @@ ProfCommandEvalSetup (profInfo_t *infoPtr, int *isProcPtr)
     Tcl_GetCommandInfoFromToken(infoPtr->currentCmd, &cmdInfo);
     /*
      * Restore the command table entry.  If the command has modified it, don't
-     * mess with it.
+     * mess with it.  For isNativeObjectProc == 2 commands (created with
+     * Tcl_CreateObjCommand2), we intercept via objProc2/objClientData2.
+     * For isNativeObjectProc == 1 commands, we intercept via objProc/objClientData.
+     * Never touch deleteProc/deleteData — Tcl uses them for CmdWrapper infrastructure.
      */
-    if (cmdInfo.proc == ProfStrCommandEval)
+    if (cmdInfo.proc == ProfStrCommandEval) {
         cmdInfo.proc = infoPtr->savedCmdInfo.proc;
-    if (cmdInfo.clientData == (ClientData) infoPtr)
         cmdInfo.clientData = infoPtr->savedCmdInfo.clientData;
-    if (cmdInfo.objProc2 == ProfObjCommandEval)
+    }
+    if (cmdInfo.objProc2 == ProfObjCommandEval) {
         cmdInfo.objProc2 = infoPtr->savedCmdInfo.objProc2;
-    if (cmdInfo.objClientData == (ClientData) infoPtr)
+        cmdInfo.objClientData2 = infoPtr->savedCmdInfo.objClientData2;
+    }
+    if (cmdInfo.objProc == ProfObjCommandEvalCompat) {
+        cmdInfo.objProc = infoPtr->savedCmdInfo.objProc;
         cmdInfo.objClientData = infoPtr->savedCmdInfo.objClientData;
-    if (cmdInfo.deleteProc == NULL)
-        cmdInfo.deleteProc = infoPtr->savedCmdInfo.deleteProc;
-    if (cmdInfo.deleteData == NULL)
-        cmdInfo.deleteData = infoPtr->savedCmdInfo.deleteData;
-    cmdInfo.isNativeObjectProc = infoPtr->savedCmdInfo.isNativeObjectProc;
+    }
 
     Tcl_SetCommandInfoFromToken(infoPtr->currentCmd, &cmdInfo);
 
@@ -545,8 +553,38 @@ ProfObjCommandEval (ClientData    clientData,
 
     ProfCommandEvalSetup (infoPtr, &isProc);
 
-    result = (*infoPtr->savedCmdInfo.objProc)(infoPtr->savedCmdInfo.objClientData, interp,
-                                        objc, objv);
+    /*
+     * Dispatch through the saved objProc2 handler.  This wrapper is only
+     * installed for commands with isNativeObjectProc == 2 (created via
+     * Tcl_CreateObjCommand2), so objProc2/objClientData2 are always valid.
+     */
+    result = (*infoPtr->savedCmdInfo.objProc2)(
+        infoPtr->savedCmdInfo.objClientData2, interp, objc, objv);
+
+    ProfCommandEvalFinishup (infoPtr, isProc);
+    return result;
+}
+
+/*-----------------------------------------------------------------------------
+ * ProfObjCommandEvalCompat --
+ *   Function to evaluate an object command created with Tcl_CreateObjCommand
+ *   (isNativeObjectProc == 1).  Uses the objProc/objClientData fields which
+ *   have the Tcl_ObjCmdProc signature (int objc).
+ *-----------------------------------------------------------------------------
+ */
+static int
+ProfObjCommandEvalCompat (ClientData    clientData,
+                          Tcl_Interp   *interp,
+                          int           objc,
+                          Tcl_Obj      *const objv[])
+{
+    profInfo_t *infoPtr = (profInfo_t *) clientData;
+    int isProc, result;
+
+    ProfCommandEvalSetup (infoPtr, &isProc);
+
+    result = (*infoPtr->savedCmdInfo.objProc)(
+        infoPtr->savedCmdInfo.objClientData, interp, objc, objv);
 
     ProfCommandEvalFinishup (infoPtr, isProc);
     return result;
@@ -575,7 +613,7 @@ ProfTraceRoutine (ClientData   clientData,
         Tcl_Panic (PROF_PANIC, 4);
 
     //TIP #571: We don' want to profile the tailcall itself. As it can only be called in a procedure/lambda context
-    if ( ! strcmp((*objv)->bytes, "tailcall") ) {
+    if ( ! strcmp(Tcl_GetString(objv[0]), "tailcall") ) {
         return TCL_OK;
     }
     /*
@@ -586,15 +624,28 @@ ProfTraceRoutine (ClientData   clientData,
     infoPtr->currentCmd = cmd;
 
     /*
-     * Force our routines to be called.
+     * Force our routines to be called.  We start from the saved cmdInfo to
+     * preserve deleteProc/deleteData and the CmdWrapper infrastructure.
+     *
+     * For isNativeObjectProc == 2 (Tcl_CreateObjCommand2): replace objProc2
+     * and objClientData2.  SetCommandInfoFromToken updates the CmdWrapperInfo
+     * in-place, so CmdWrapperProc (in objProc) will call our ProfObjCommandEval.
+     *
+     * For isNativeObjectProc == 1 (Tcl_CreateObjCommand): replace objProc
+     * and objClientData directly, since Tcl dispatches through cmdPtr->objProc.
      */
+    cmdInfo = infoPtr->savedCmdInfo;
     cmdInfo.proc = ProfStrCommandEval;
     cmdInfo.clientData = (ClientData) infoPtr;
-    cmdInfo.objProc2 = ProfObjCommandEval;
-    cmdInfo.objClientData = (ClientData) infoPtr;
-    cmdInfo.isNativeObjectProc = infoPtr->savedCmdInfo.isNativeObjectProc;
-    cmdInfo.deleteProc = NULL;
-    cmdInfo.deleteData = NULL;
+
+    if (infoPtr->savedCmdInfo.isNativeObjectProc == 2) {
+        cmdInfo.objProc2 = ProfObjCommandEval;
+        cmdInfo.objClientData2 = (ClientData) infoPtr;
+    } else {
+        cmdInfo.objProc = ProfObjCommandEvalCompat;
+        cmdInfo.objClientData = (ClientData) infoPtr;
+    }
+
     Tcl_SetCommandInfoFromToken(cmd, &cmdInfo);
 
     return TCL_OK;

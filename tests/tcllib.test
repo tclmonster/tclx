@@ -18,11 +18,18 @@
 #
 
 if {[cequal [info procs Test] {}]} {
-    puts [file join [file dirname [info script]] testlib.tcl]
     source [file join [file dirname [info script]] testlib.tcl]
 }
 
-auto_load auto_reset  ;# Make sure we have this before changing path.
+# Tcl's auto_reset (from auto.tcl) is auto-loaded, so it appears in
+# auto_index and deletes itself when called.  After that it can't be
+# re-loaded if auto_path doesn't include [info library].  Override with
+# a directly-defined proc that won't appear in auto_index and thus
+# won't delete itself.
+proc auto_reset {} {
+    global auto_execs auto_index auto_oldpath
+    unset -nocomplain auto_execs auto_index auto_oldpath ::tcl::auto_oldpath
+}
 
 global save_auto_path auto_path
 set save_auto_path $auto_path
@@ -44,10 +51,12 @@ if ![file isdirectory tcllib2.dir] {
 # reset the environment.  
 #
 proc TclLibReset {} {
-    if {[catch {auto_reset} err]} {
-	puts TclLibReset:$err
-    }
+    auto_reset
     catch {unset auto_pkg_index}
+    # Re-register buildpackageindex since TclX sets it manually in tclx.tcl
+    # (there is no tclIndex in the tclx_library directory).
+    set ::auto_index(buildpackageindex) \
+        {source [file join $::tclx_library buildidx.tcl]}
 }
 
 #
@@ -128,9 +137,7 @@ BuildTestLib tcllib1.dir/test1.tlib
 PutFile tcllib1.dir/test1.tndx {bogus
 data}
 
-#puts 1)TclLibReset
 TclLibReset
-#puts ok
 set auto_path [list [pwd]/tcllib1.dir $tclx_library]
 
 test tcllib-3.1 {bogus package library index} {
@@ -140,18 +147,13 @@ test tcllib-3.1 {bogus package library index} {
 
 catch {rename buildpackageindex {}} ;# Make sure we can autoload this
 
-if {[catch {PutFile tcllib1.dir/test1.tndx {test1-package 56 240 TclLibAAB TclLibAAC TclLibAAD}} err]} {
-    puts err=$err
-}
-#puts 2)TclLibReset
+PutFile tcllib1.dir/test1.tndx \
+	{test1-package 56 240 TclLibAAB TclLibAAC TclLibAAD}
 TclLibReset
 
 test tcllib-3.2 {bogus package library index} {
-    #(error while autoloading "TclLibAAB": )
-    #set re {^(invalid command name "TclLibAAB")?range to eval outside of file bounds in "....+test1.tlib", index file probably corrupt$}
-    #set l [list [catch {TclLibAAB} msg] [expr {[regexp $re $msg]?1:$msg}]]
-    set l [list [string match {invalid command name "TclLibAAB"} $msg
-    set l
+    set re {^(error while autoloading "TclLibAAB": )?range to eval outside of file bounds in "....+test1.tlib", index file probably corrupt$}
+    list [catch {TclLibAAB} msg] [expr {[regexp $re $msg]?1:$msg}]
 } {1 1}
 
 PutFile tcllib1.dir/test1.tndx \
@@ -160,7 +162,6 @@ TclLibReset
 	   
 test tcllib-3.3 {bogus package library index} {
     set re {^(error while autoloading "TclLibAAB": )?format error in library index ".*" \(test1-package -1 140 TclLibAAB TclLibAAC TclLibAAD\)$}
-    puts [list regexp $re]
     list [catch {TclLibAAB} msg] [expr {[regexp $re $msg]?1:$msg}]
 } {1 1}
 
@@ -260,6 +261,9 @@ test tcllib-7.1 {Duplicate package handling} {
 TclLibReset
 
 test tcllib-7.2 {Duplicate package handling} {
+    # Our auto_reset doesn't delete procs (see comment at top of file),
+    # so DupPkgTest from 7.1 persists.  Delete it to force re-autoload.
+    catch {rename DupPkgTest {}}
     lrmdups {a b c}  ;# Force load of indices.
     loadlibindex tcllib2.dir/test2.tlib
     DupPkgTest
@@ -284,6 +288,9 @@ PutFile tcllib2.dir/test1.tcl \
 }
 
 test tcllib-7.3 {Duplicate package handling} {
+    # Our auto_reset doesn't delete procs (see comment at top of file),
+    # so DupPkgTest from 7.2 persists.  Delete it to force re-autoload.
+    catch {rename DupPkgTest {}}
     DupPkgTest
 } {Version-1}
 
@@ -316,7 +323,6 @@ test tcllib-8.2 {backslash parsing in package headers} {
 
 
 test tcllib-8.3 {backslash parsing in package headers} {
-puts TclLibReset
     TclLibReset
     procCCC
 } {CCC}
