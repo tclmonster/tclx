@@ -401,9 +401,15 @@ scancontext delete $testCH
 
 set testCH [scancontext create]
 
-Test filescan-7.1 {filescan tests} {
-    scanmatch $testCH {a[} {}
-} 1 {cannot compile regular expression pattern: brackets [] not balanced}
+if {[package vcompare [package provide Tcl] 9.0] >= 0} {
+    Test filescan-7.1 {filescan tests} {
+        scanmatch $testCH {a[} {}
+    } 1 {cannot compile regular expression pattern: brackets [] not balanced}
+} else {
+    Test filescan-7.1 {filescan tests} {
+        scanmatch $testCH {a[} {}
+    } 1 {couldn't compile regular expression pattern: brackets [] not balanced}
+}
 
 #
 # Test the copy file manipulation by sorting a file of numbered lines into two

@@ -334,6 +334,11 @@ TclX_ChmodObjCmd (ClientData clientData, Tcl_Interp *interp, Tcl_Size objc, Tcl_
 	return TclX_WrongArgs (interp, objv [0], "[-fileid] mode filelist");
 
     modeString = Tcl_GetStringFromObj (objv [objIdx], NULL);
+#if TCL_MAJOR_VERSION > 8
+    /*
+     * Tcl 9 treats leading-0 integers as decimal, not octal.  We must
+     * parse octal manually and accept the explicit 0d prefix for decimal.
+     */
     if (modeString[0] == '0' && modeString[1] == 'd') {
 
       /* Allow special case for explicit decimal representation */
@@ -357,12 +362,27 @@ TclX_ChmodObjCmd (ClientData clientData, Tcl_Interp *interp, Tcl_Size objc, Tcl_
 	}
 	modeInfo.absMode = modeBits;
         modeInfo.symMode = NULL;
-	
+
     } else {
         /* String mode */
         modeInfo.absMode = 0;
         modeInfo.symMode = modeString;
     }
+#else
+    /*
+     * Tcl 8: Tcl_GetIntFromObj handles 0-prefixed integers as octal.
+     */
+    if (ISDIGIT (modeString[0])) {
+        if (Tcl_GetIntFromObj (interp, objv [objIdx], &modeBits)
+	  != TCL_OK)
+            return TCL_ERROR;
+	modeInfo.absMode = modeBits;
+        modeInfo.symMode = NULL;
+    } else {
+        modeInfo.absMode = 0;
+        modeInfo.symMode = modeString;
+    }
+#endif
 
     if (Tcl_ListObjGetElements (interp, objv [objIdx + 1], &fileObjc,
                        &fileObjv) != TCL_OK)

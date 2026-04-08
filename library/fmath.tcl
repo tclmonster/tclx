@@ -20,7 +20,7 @@
 #@package: TclX-fmath acos asin atan ceil cos cosh exp fabs floor log log10 \
            sin sinh sqrt tan tanh fmod pow atan2 abs double int round
 
-if {[package vcompare $::tcl_version 9.0] <= 0} {
+if {[package vcompare $::tcl_version 9.0] >= 0} {
     foreach mfunc [info commands ::tcl::mathfunc::*] {
 	set mname [namespace tail $mfunc]
 	if {[info commands $mname] ne ""} continue

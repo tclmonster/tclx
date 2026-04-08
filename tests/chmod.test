@@ -30,9 +30,16 @@ if [cequal $tcl_platform(platform) windows] {
     return
 }
 
-# Enforce strict octal values only
-testConstraint permissiveOctal 1
-testConstraint strictOctal 1
+# Tcl 9 treats leading-0 as decimal, so chmod must parse octal manually.
+# permissiveOctal: tests using 0d prefix (Tcl 9 only)
+# strictOctal: tests where bare integers are NOT octal (Tcl 9 only)
+if {[package vcompare [package provide Tcl] 9.0] >= 0} {
+    testConstraint permissiveOctal 1
+    testConstraint strictOctal 1
+} else {
+    testConstraint permissiveOctal 0
+    testConstraint strictOctal 0
+}
 
 #-----------------------------------------------------------------------------
 # This routine to the the mode of a file.  It is returned formated in octal.
