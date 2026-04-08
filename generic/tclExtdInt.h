@@ -32,6 +32,25 @@
 #endif
 
 /*
+ * Tcl 9 / Tcl 8 backward compatibility shim.
+ */
+#if TCL_MAJOR_VERSION < 9
+#  ifndef TCL_SIZE_MAX
+#    define TCL_SIZE_MAX INT_MAX
+#    ifndef Tcl_Size
+       typedef int Tcl_Size;
+#    endif
+#    define TCL_SIZE_MODIFIER ""
+#    define TCL_Z_MODIFIER    ""
+#  endif
+#  define Tcl_CreateObjCommand2 Tcl_CreateObjCommand
+#  define Tcl_ObjCmdProc2       Tcl_ObjCmdProc
+#  define Tcl_CreateObjTrace2   Tcl_CreateObjTrace
+#  define Tcl_CmdObjTraceProc2  Tcl_CmdObjTraceProc
+#  define Tcl_GetIntForIndex    TclGetIntForIndex
+#endif
+
+/*
  * Internal interp flags compatibility - removed in Tcl 8.5 sources.
  */
 #ifndef ERR_IN_PROGRESS

@@ -122,11 +122,13 @@ ProfStrCommandEval (ClientData    clientData,
                     int           argc,
                     const char **argv);
 
+#if TCL_MAJOR_VERSION > 8
 static int
 ProfObjCommandEval (ClientData    clientData,
                     Tcl_Interp   *interp,
                     Tcl_Size      objc,
                     Tcl_Obj      *const objv[]);
+#endif
 
 static int
 ProfObjCommandEvalCompat (ClientData    clientData,
@@ -134,11 +136,7 @@ ProfObjCommandEvalCompat (ClientData    clientData,
                           int           objc,
                           Tcl_Obj      *const objv[]);
 
-#if TCL_MAJOR_VERSION > 8
 static Tcl_CmdObjTraceProc2 ProfTraceRoutine;
-#else
-static Tcl_CmdObjTraceProc ProfTraceRoutine;
-#endif
 
 static void
 CleanDataTable (profInfo_t *infoPtr);
@@ -411,10 +409,12 @@ ProfCommandEvalSetup (profInfo_t *infoPtr, int *isProcPtr)
         cmdInfo.proc = infoPtr->savedCmdInfo.proc;
         cmdInfo.clientData = infoPtr->savedCmdInfo.clientData;
     }
+#if TCL_MAJOR_VERSION > 8
     if (cmdInfo.objProc2 == ProfObjCommandEval) {
         cmdInfo.objProc2 = infoPtr->savedCmdInfo.objProc2;
         cmdInfo.objClientData2 = infoPtr->savedCmdInfo.objClientData2;
     }
+#endif
     if (cmdInfo.objProc == ProfObjCommandEvalCompat) {
         cmdInfo.objProc = infoPtr->savedCmdInfo.objProc;
         cmdInfo.objClientData = infoPtr->savedCmdInfo.objClientData;
@@ -530,13 +530,12 @@ ProfStrCommandEval (ClientData    clientData,
     return result;
 }
 
+#if TCL_MAJOR_VERSION > 8
 /*-----------------------------------------------------------------------------
  * ProfObjCommandEval --
- *   Function to evaluate a object command.  The procedure trace routine
- * substitutes this function for the command executor function in the Tcl
- * command table.  We restore the command table, record data about the start
- * of the command and then actually execute the command.  When the command
- * returns, we record data about the time it took.
+ *   Function to evaluate a Tcl 9 object command (created with
+ * Tcl_CreateObjCommand2, isNativeObjectProc == 2).  The trace routine
+ * substitutes this function for the objProc2 handler in the command table.
  *
  * FIX:  This all falls apart if another trace is executed between the
  * doctoring of the command entry and this function being called.
@@ -553,17 +552,13 @@ ProfObjCommandEval (ClientData    clientData,
 
     ProfCommandEvalSetup (infoPtr, &isProc);
 
-    /*
-     * Dispatch through the saved objProc2 handler.  This wrapper is only
-     * installed for commands with isNativeObjectProc == 2 (created via
-     * Tcl_CreateObjCommand2), so objProc2/objClientData2 are always valid.
-     */
     result = (*infoPtr->savedCmdInfo.objProc2)(
         infoPtr->savedCmdInfo.objClientData2, interp, objc, objv);
 
     ProfCommandEvalFinishup (infoPtr, isProc);
     return result;
 }
+#endif /* TCL_MAJOR_VERSION > 8 */
 
 /*-----------------------------------------------------------------------------
  * ProfObjCommandEvalCompat --
@@ -638,10 +633,13 @@ ProfTraceRoutine (ClientData   clientData,
     cmdInfo.proc = ProfStrCommandEval;
     cmdInfo.clientData = (ClientData) infoPtr;
 
+#if TCL_MAJOR_VERSION > 8
     if (infoPtr->savedCmdInfo.isNativeObjectProc == 2) {
         cmdInfo.objProc2 = ProfObjCommandEval;
         cmdInfo.objClientData2 = (ClientData) infoPtr;
-    } else {
+    } else
+#endif
+    {
         cmdInfo.objProc = ProfObjCommandEvalCompat;
         cmdInfo.objClientData = (ClientData) infoPtr;
     }

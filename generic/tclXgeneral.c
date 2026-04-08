@@ -459,12 +459,14 @@ GlobalImport (Tcl_Interp *interp)
 				 globalObjc,
 				 globalObjv);
       break;
+#if TCL_MAJOR_VERSION > 8
     case 2:
-      code = (*cmdInfo.objProc2) (cmdInfo.objClientData,
+      code = (*cmdInfo.objProc2) (cmdInfo.objClientData2,
 				  interp,
 				  globalObjc,
 				  globalObjv);
       break;
+#endif
     }
     
     for (idx = 0; idx < globalObjc; idx++) {
