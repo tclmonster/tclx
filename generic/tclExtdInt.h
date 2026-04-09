@@ -48,6 +48,10 @@
 #  define Tcl_CreateObjTrace2   Tcl_CreateObjTrace
 #  define Tcl_CmdObjTraceProc2  Tcl_CmdObjTraceProc
 #  define Tcl_GetIntForIndex    TclGetIntForIndex
+#else
+#  ifndef TCL_RESULT_SIZE
+#    define TCL_RESULT_SIZE 200
+#  endif
 #endif
 
 /*

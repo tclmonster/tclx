@@ -138,7 +138,7 @@ TclX_IdObjCmd (ClientData  clientData,
 void
 TclX_IdInit (Tcl_Interp *interp)
 {
-    Tcl_CreateObjCommand (interp,
+    Tcl_CreateObjCommand2 (interp,
 			  "id",
 			  TclX_IdObjCmd,
                           (ClientData) NULL,
