@@ -314,6 +314,7 @@ TclX_ChmodObjCmd (ClientData clientData, Tcl_Interp *interp, Tcl_Size objc, Tcl_
     Tcl_Obj     **fileObjv;
     char         *fileIdsString;
     char         *modeString;
+    Tcl_Size      modeLen;
     int          modeBits;
 
     /*
@@ -333,35 +334,35 @@ TclX_ChmodObjCmd (ClientData clientData, Tcl_Interp *interp, Tcl_Size objc, Tcl_
     if (objIdx != objc - 2)
 	return TclX_WrongArgs (interp, objv [0], "[-fileid] mode filelist");
 
-    modeString = Tcl_GetStringFromObj (objv [objIdx], NULL);
+    modeString = Tcl_GetStringFromObj (objv [objIdx], &modeLen);
 #if TCL_MAJOR_VERSION > 8
     /*
      * Tcl 9 treats leading-0 integers as decimal, not octal.  We must
      * parse octal manually and accept the explicit 0d prefix for decimal.
      */
-    if (modeString[0] == '0' && modeString[1] == 'd') {
+    if (modeLen >= 2 && modeString[0] == '0' && ISDIGIT (modeString[1])) {
 
-      /* Allow special case for explicit decimal representation */
+        /* Allow special case for octal numbers specified as 0644 */
+        int i = 0;
+	    modeBits = 0;
+	    while (modeString[i]) {
+	        if ((!ISDIGIT(modeString[i])) || modeString[i] > '7') {
+	            return TCL_ERROR;
+	        }
+	        modeBits = (modeBits << 3 | (0x7 & (modeString[i] - '0')));
+	        i++;
+	    }
+	    modeInfo.absMode = modeBits;
+        modeInfo.symMode = NULL;
+
+    } else if (modeLen >= 1 && ISDIGIT (modeString[0])) {
+
+      /* Use the specified number as is */
       if (Tcl_GetIntFromObj (interp, objv [objIdx], &modeBits) != TCL_OK) {
-	return TCL_ERROR;
+	    return TCL_ERROR;
       }
       modeInfo.absMode = modeBits;
       modeInfo.symMode = NULL;
-
-    } else if (ISDIGIT (modeString[0])) {
-
-      /* parse out the octal number */
-        int i = 0;
-	modeBits = 0;
-	while (modeString[i]) {
-	    if ((!ISDIGIT(modeString[i])) || modeString[i] > '7') {
-	        return TCL_ERROR;
-	    }
-	    modeBits = (modeBits << 3 | (0x7 & (modeString[i] - '0')));
-	    i++;
-	}
-	modeInfo.absMode = modeBits;
-        modeInfo.symMode = NULL;
 
     } else {
         /* String mode */
@@ -372,7 +373,7 @@ TclX_ChmodObjCmd (ClientData clientData, Tcl_Interp *interp, Tcl_Size objc, Tcl_
     /*
      * Tcl 8: Tcl_GetIntFromObj handles 0-prefixed integers as octal.
      */
-    if (ISDIGIT (modeString[0])) {
+    if (modeLen >= 1 && ISDIGIT (modeString[0])) {
         if (Tcl_GetIntFromObj (interp, objv [objIdx], &modeBits)
 	  != TCL_OK)
             return TCL_ERROR;
